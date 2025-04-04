@@ -9,11 +9,10 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     email = Column(String(100), unique=True)
-    role = Column(Enum('pending', 'member', 'admin', name='user_roles'), default='pending')  # 新增pending状态
+    role = Column(Enum('pending','public', 'member', 'admin', name='user_roles'), default='pending')  # 新增pending状态
     is_active = Column(Boolean, default=False)  # 默认未激活
     storage_quota = Column(BigInteger, default=107374182400)  # 默认100GB (单位: bytes)
     used_storage = Column(BigInteger, default=0)
-    approved_by = Column(Integer, nullable=True)  # 审核人ID
 
 class StorageQuota(Base):
     __tablename__ = "storage_quotas"

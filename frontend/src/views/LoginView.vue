@@ -1,123 +1,97 @@
 <template>
-    <div>
-        <!-- 登录表单 -->
-        <div v-if="!isAuthenticated">
-            <h2>登录</h2>
-            <form @submit.prevent="handleLogin">
-                <input v-model="loginForm.username" placeholder="用户名" required>
-                <input v-model="loginForm.password" type="password" placeholder="密码" required>
-                <button type="submit">登录</button>
-            </form>
-
-            <!-- 注册表单 -->
-            <h2>注册</h2>
-            <form @submit.prevent="handleRegister">
-                <input v-model="registerForm.username" placeholder="用户名" required>
-                <input v-model="registerForm.email" type="email" placeholder="邮箱" required>
-                <input v-model="registerForm.password" type="password" placeholder="密码" required>
-                <button type="submit">注册</button>
-            </form>
-        </div>
-
-        <!-- 登录后显示 -->
-        <div v-else>
-            <p>欢迎, {{ currentUser.username }}!</p>
-            <button @click="handleLogout">注销</button>
-        </div>
-
-        <!-- 显示消息 -->
-        <div v-if="message" :class="['message', messageType]">
-            {{ message }}
-        </div>
+    <div class="login-container">
+        <h1>CMS 登录</h1>
+        <form @submit.prevent="handleLogin">
+            <div class="form-group">
+                <label>用户名</label>
+                <input v-model="username" type="text" required>
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input v-model="password" type="password" required>
+            </div>
+            <button type="submit">登录</button>
+        </form>
+    </div>
+    <div class="register-link">
+        没有账户？<router-link to="/register">立即注册</router-link>
     </div>
 </template>
 
 <script>
-import authApi from '../api/auth.js'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth.js'
 
 export default {
-    data() {
-        return {
-            loginForm: {
-                username: '',
-                password: ''
-            },
-            registerForm: {
-                username: '',
-                email: '',
-                password: ''
-            },
-            currentUser: null,
-            isAuthenticated: false,
-            message: '',
-            messageType: ''
+    setup() {
+        const username = ref('')
+        const password = ref('')
+        const router = useRouter()
+        const authStore = useAuthStore()
+        const handleLogin = async () => {
+            try {
+                await authStore.login({
+                    username: username.value,
+                    password: password.value
+                })
+                router.push('/dashboard')
+            } catch (error) {
+                alert('登录失败: ' + error.message)
+            }
         }
-    },
-    async created() {
-        await this.checkAuth()
-    },
-    methods: {
-        async checkAuth() {
-            this.currentUser = await authApi.getCurrentUser()
-            this.isAuthenticated = !!this.currentUser
-        },
 
-        async handleLogin() {
-            try {
-                await authApi.login(this.loginForm.username, this.loginForm.password)
-                await this.checkAuth()
-                this.showMessage('登录成功', 'success')
-            } catch (error) {
-                this.showMessage(error.message, 'error')
-            }
-        },
-
-        async handleRegister() {
-            try {
-                await authApi.register(this.registerForm)
-                this.showMessage('注册成功，请等待管理员审核', 'success')
-                this.registerForm = { username: '', email: '', password: '' }
-            } catch (error) {
-                this.showMessage(error.message, 'error')
-            }
-        },
-
-        async handleLogout() {
-            try {
-                await authApi.logout()
-                await this.checkAuth()
-                this.showMessage('注销成功', 'success')
-            } catch (error) {
-                this.showMessage(error.message, 'error')
-            }
-        },
-
-        showMessage(msg, type) {
-            this.message = msg
-            this.messageType = type
-            setTimeout(() => {
-                this.message = ''
-                this.messageType = ''
-            }, 3000)
-        }
+        return { username, password, handleLogin }
     }
 }
 </script>
 
 <style>
-.message {
+.login-container {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
     padding: 10px;
-    margin: 10px 0;
+    background-color: #42b983;
+    color: white;
+    border: none;
     border-radius: 4px;
+    cursor: pointer;
 }
 
-.message.success {
-    background-color: #d4edda;
-    color: #155724;
+.register-link {
+    margin-top: 16px;
+    text-align: center;
+    color: #666;
 }
 
-.message.error {
-    background-color: #f8d7da;
-    color: #721c24;
+.register-link a {
+    color: #1890ff;
+    text-decoration: none;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
 }
 </style>

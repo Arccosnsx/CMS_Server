@@ -19,6 +19,9 @@ class UserOut(BaseModel):
     is_active: bool
     storage_quota: int
     used_storage: int
+    
+    class Config:
+        from_attributes = True
 
 class UserUpdate(BaseModel):
     role: Optional[str] = None
@@ -35,3 +38,4 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: str | None = None
+    role: str | None = None  # 添加角色信息

@@ -1,26 +1,17 @@
 import { defineStore } from 'pinia'
-import filesApi from '../api/files.js'
+import filesApi from '../api/files'
 
 export const useFilesStore = defineStore('files', {
   state: () => ({
-    currentSpace: 'user',
-    currentPath: null,
-    files: []
+    currentPath: [],
+    currentFiles: [],
+    currentSpace: 'personal'
   }),
   actions: {
-    async uploadFile(file, parentId = null) {
-      return filesApi.upload(this.currentSpace, file, parentId)
-    },
-    async fetchFiles(parentId = null) {
-      this.files = await filesApi.list(this.currentSpace, parentId)
-    },
-    async createFolder(name) {
-      const folderData = {
-        name,
-        is_folder: true,
-        owner_type: this.currentSpace
-      }
-      return filesApi.createFolder(folderData)
+    async loadFiles(spaceType, parentId = null) {
+      const response = await filesApi.listFiles(spaceType, parentId)
+      this.currentFiles = response.data
+      this.currentSpace = spaceType
     }
   }
 })
