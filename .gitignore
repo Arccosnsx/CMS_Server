@@ -8,6 +8,8 @@ __pycache__/
 *.pyd
 .Python
 
+config.py
+
 # Node.js 依赖
 node_modules/
 npm-debug.log*
