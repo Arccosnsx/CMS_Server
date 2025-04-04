@@ -17,7 +17,7 @@ class FileBase(BaseModel):
 
 class FileCreate(FileBase):
     is_folder: bool = Field(False, example=False)
-    owner_type: str = Field(..., example="user", regex="^(public|group|user)$")
+    owner_type: str = Field(..., example="user", pattern="^(public|group|user)$")
 
 class FileOut(FileBase):
     id: str = Field(..., example="a1b2c3d4-e5f6-7890-g1h2-i3j4k5l6m7n8")
@@ -32,7 +32,7 @@ class FileOut(FileBase):
     created_by: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class FileMove(BaseModel):
     target_parent_id: str = Field(

@@ -61,3 +61,13 @@ CREATE TABLE moderation_logs (
     FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
     FOREIGN KEY (moderator_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- 创建配额表
+CREATE TABLE storage_quotas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quota_type ENUM('public', 'group', 'user') NOT NULL,
+    quota_limit BIGINT NOT NULL ,
+    updated_by INT NOT NULL  ,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY (quota_type)  
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ;
