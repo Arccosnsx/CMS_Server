@@ -12,9 +12,9 @@
             </div>
             <button type="submit">登录</button>
         </form>
-    </div>
-    <div class="register-link">
-        没有账户？<router-link to="/register">立即注册</router-link>
+        <div class="register-link">
+            没有账户？<router-link to="/register">立即注册</router-link>
+        </div>
     </div>
 </template>
 
@@ -48,7 +48,8 @@ export default {
 
 <style>
 .login-container {
-    max-width: 400px;
+    max-width: 300px;
+    min-width: 200px;
     margin: 50px auto;
     padding: 20px;
     border: 1px solid #ddd;

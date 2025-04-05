@@ -8,6 +8,7 @@ from app.database.models import File, User
 from app.schemas.file import FileStatus,FileCreate
 from .storage import check_storage_quota, update_storage_usage
 from .permission import check_file_permission
+import mimetypes 
 
 def sanitize_filename(filename: str) -> str:
     # 移除危险字符
@@ -18,73 +19,79 @@ def save_upload_file(file: UploadFile, dest_path: str):
     with open(dest_path, "wb") as buffer:
         buffer.write(file.file.read())
 
+
 def get_file_storage_path(space_type: str, user_id: int, filename: str) -> str:
-    """生成文件存储路径"""
+    """生成最终存储路径"""
     base_path = {
-        'public': os.path.join(settings.PUBLIC_ROOT, 'temp'),
+        'public': os.path.join(settings.PUBLIC_ROOT),
         'group': settings.GROUP_ROOT,
         'user': os.path.join(settings.USER_ROOT, str(user_id))
     }[space_type]
     return os.path.join(base_path, filename)
 
-def handle_upload(
-    db: Session,
-    file: UploadFile,
+def check_chunk(identifier: str, chunk_number: int):
+    """检查分片是否存在"""
+    chunk_path = os.path.join(settings.CHUNKTEMP, identifier, str(chunk_number))
+    return os.path.exists(chunk_path)
+
+def handle_merge_chunks(
+    identifier: str,
+    filename: str,
     space_type: str,
-    user: User,
-    parent_id: str = None
-) -> File:
-    # 检查权限
-    if space_type == 'group' and user.role not in ['member', 'admin']:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only members can upload to group space"
-        )
+    parent_id: str,
+    db: Session,
+    current_user: User
+):
+    """合并分片"""
+    temp_dir = os.path.join(settings.CHUNKTEMP, identifier)
+    if not os.path.exists(temp_dir):
+        raise HTTPException(404, "Chunks not found")
 
-    # 获取文件大小
-    file_size = len(file.file.read())
-    file.file.seek(0)  # 重置文件指针
+    # 检查完整性和排序
+    chunks = sorted(os.listdir(temp_dir), key=lambda x: int(x))
+    if len(chunks) != int(len(chunks)):
+        shutil.rmtree(temp_dir)
+        raise HTTPException(400, "Invalid chunks")
 
-    # 检查存储配额
-    check_storage_quota(db, user.id, file_size, space_type)
-
-    # 生成安全文件名
-    safe_name = sanitize_filename(file.filename)
+    # 生成最终文件路径
     file_id = str(uuid4())
-    storage_path = get_file_storage_path(space_type, user.id, f"{file_id}_{safe_name}")
+    safe_name = sanitize_filename(filename)
+    final_path = get_file_storage_path(space_type, current_user.id, f"{file_id}_{safe_name}")
+    # 合并文件
+    with open(final_path, "wb") as outfile:
+        for chunk in chunks:
+            with open(os.path.join(temp_dir, chunk), "rb") as infile:
+                outfile.write(infile.read())
+    
+    # 清理临时目录
+    shutil.rmtree(temp_dir)
 
-    # 设置审核状态
-    status = FileStatus.pending if space_type == 'public' else FileStatus.approved
+    # 创建数据库记录（与原有逻辑保持一致）
+    file_size = os.path.getsize(final_path)
+    check_storage_quota(db, current_user.id, file_size, space_type)
 
-    # 创建数据库记录
     db_file = File(
         id=file_id,
         name=safe_name,
         parent_id=parent_id,
         is_folder=False,
         owner_type=space_type,
-        owner_id=1 if space_type == 'group' else user.id,
-        storage_path=storage_path,
+        owner_id=1 if space_type == 'group' else current_user.id,
+        storage_path=final_path,
         size=file_size,
-        mime_type=file.content_type,
-        status=status,
-        created_by=user.id
+        mime_type=mimetypes.guess_type(filename)[0],
+        status=FileStatus.pending if space_type == 'public' else FileStatus.approved,
+        created_by=current_user.id,
+        md5=identifier
     )
-    
-    # 保存文件
+
     try:
-        save_upload_file(file, storage_path)
         db.add(db_file)
         db.commit()
-        update_storage_usage(db, user.id, file_size, 'add')
+        update_storage_usage(db, current_user.id, file_size, 'add')
     except Exception as e:
-        db.rollback()
-        if os.path.exists(storage_path):
-            os.remove(storage_path)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"File upload failed: {str(e)}"
-        )
+        os.remove(final_path)
+        raise HTTPException(500, f"Database error: {str(e)}")
 
     return db_file
 

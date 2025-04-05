@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    PUBLIC_ROOT:str ="/mnt/store/public"
+    GROUP_ROOT:str ="/mnt/store/group"
+    USER_ROOT:str ="/mnt/store/users"
+    CHUNKTEMP:str ="/mnt/store/chunk_temp"
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # 忽略额外字段

@@ -1,145 +1,205 @@
 <template>
     <div class="dashboard">
-        <header>
-            <div class="header-left">
-                <img src="../assets/logo.png" alt="Logo" class="logo">
-                <h1>古协的小仓库</h1>
-            </div>
-            <div class="header-right">
+        <!-- 顶部导航栏 -->
+        <div class="top-bar">
+            <div class="app-title">古协文件仓库</div>
+            <div class="user-info">
                 <span class="username">{{ authStore.user?.username }}</span>
-                <button @click="handleLogout" class="logout-btn">退出登录</button>
+                <span class="user-role">{{ roleDisplay }}</span>
+                <button @click="handleLogout" class="logout-btn">退出</button>
             </div>
-        </header>
+        </div>
 
-        <div class="path-display">
-            <span v-for="(part, index) in pathParts" :key="index" @click="navigateTo(index)">
-                <span class="path-separator" v-if="index > 0">/</span>
-                <span class="path-part">{{ part }}</span>
+        <div class="action-bar">
+            <!-- 上传按钮 -->
+            <button class="upload-btn" @click="showUploadModal" >
+                <span>📤 上传</span>
+            </button>
+
+            <!-- 其他路径导航等内容... -->
+        </div>
+
+        <UploadModal :currentParentId="filesStore.currentParentId" :visible="showUploadModalFlag" :currentPath="filesStore.currentPath" @close="hideUploadModal" />
+
+
+        <!-- 路径导航 -->
+        <div class="path-navigation">
+            <span v-for="(path, index) in filesStore.pathStack" :key="index" class="path-segment"
+                @click="navigateTo(index)">
+                <span v-if="index > 0" class="path-separator">/</span>
+                {{ path.displayName || path.name }}
             </span>
         </div>
 
-        <nav>
-            <button v-for="space in spaces" :key="space.id" @click="switchSpace(space.id)"
-                :class="{ active: currentSpace === space.id }">
-                {{ space.name }}
-            </button>
-        </nav>
+        <!-- 文件加载状态 -->
+        <div v-if="filesStore.isLoading" class="loading-indicator">
+            <span class="loading-spinner"></span>
+            加载中...
+        </div>
 
-        <main>
-            <FileBrowser :files="files" @navigate="handleNavigate" />
-        </main>
+        <!-- 错误提示 -->
+        <div v-if="filesStore.error" class="error-message">
+            {{ filesStore.error }}
+            <button @click="retryLoad" class="retry-btn">重试</button>
+        </div>
+
+        <!-- 文件网格 -->
+        <div v-if="!filesStore.isLoading && !filesStore.error" class="file-grid">
+            <FileCard v-for="file in filesStore.currentFiles" :key="file.id" :item="file" @click="handleFileClick" @menu-action="handleMenuAction"/>
+        </div>
+
+        <!-- 空状态提示 -->
+        <div v-if="!filesStore.isLoading && !filesStore.error && filesStore.currentFiles.length === 0"
+            class="empty-state">
+            <div class="empty-icon">📁</div>
+            <div class="empty-text">当前文件夹为空</div>
+        </div>
     </div>
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth.js'
-import { useFilesStore } from '../stores/files.js'
-import FileBrowser from '../components/FileBrowser.vue'
+import { useAuthStore } from '../stores/auth'
+import { useFilesStore } from '../stores/files'
+import FileCard from '../components/FileCard.vue'
+import UploadModal from '../components/UploadModal.vue'
 
 export default {
-    components: { FileBrowser },
+    components: {
+        FileCard,
+        UploadModal
+     },
     setup() {
         const router = useRouter()
         const authStore = useAuthStore()
         const filesStore = useFilesStore()
 
-        const spaces = [
-            { id: 'personal', name: '个人空间' },
-            { id: 'group', name: '社团空间' },
-            {id: 'public', name: '公共空间' }
-    ]
+        const roleDisplay = computed(() => {
+            const roles = {
+                'admin': '管理员',
+                'member': '成员',
+                'user': '用户'
+            }
+            return roles[authStore.user?.role] || authStore.user?.role
+        })
 
-    const currentSpace = ref('personal')
-    const currentPath = ref('/')
+        const showUploadModalFlag = ref(false)
 
-    const pathParts = computed(() => {
-        return currentPath.value.split('/').filter(part => part !== '')
-    })
+        const showUploadModal = () => {
+            showUploadModalFlag.value = true
+        }
 
-    const files = ref([
-        { id: 1, name: '文档', type: 'folder', size: '-', modified: '2023-05-15' },
-        { id: 2, name: '图片', type: 'folder', size: '-', modified: '2023-05-10' },
-        { id: 3, name: '报告.pdf', type: 'file', size: '2.5MB', modified: '2023-05-01' },
-        { id: 4, name: '资料.zip', type: 'file', size: '15.2MB', modified: '2023-04-28' }
-    ])
+        const hideUploadModal = () => {
+            showUploadModalFlag.value = false
+        }
 
-    const switchSpace = (space) => {
-        currentSpace.value = space
-        currentPath.value = '/'
-        filesStore.loadFiles(space, '/')
+        const handleFileClick = async (file) => {
+            if (file.is_folder) {
+                //console.log("handleFileClick is Called")
+                filesStore.pushPath({
+                    id: file.id,
+                    name: file.name,
+                    displayName: file.displayName || file.name
+                })
+                await filesStore.loadFiles(file.id)
+            } else {
+                // 处理文件点击（如下载或预览）
+                //console.log('打开文件:', file.name)
+                // 实际项目中可以调用下载API或打开预览
+            }
+        }
+
+        const navigateTo = (index) => {
+            if (index === filesStore.pathStack.length - 1) return
+            filesStore.navigateTo(index)
+        }
+
+        const handleLogout = () => {
+            authStore.logout()
+            router.push('/login')
+        }
+
+        const retryLoad = () => {
+            filesStore.loadFiles(filesStore.currentParentId)
+        }
+
+        onMounted(() => {
+            filesStore.loadFiles(null) // 初始加载根目录
+        })
+
+        const handleMenuAction=({ action, file }) =>{
+      switch(action) {
+        case 'download':
+          this.downloadFile(file)
+          break
+        case 'rename':
+          this.renameFile(file)
+          break
+        case 'move':
+          this.moveFile(file)
+          break
+        case 'properties':
+          this.showFileProperties(file)
+          break
+      }
+    }
+    
+    const downloadFile=(file) =>{
+      console.log('下载文件:', file.name)
+      // 实现下载逻辑
+    }
+    
+    const renameFile=(file) =>{
+      console.log('重命名文件:', file.name)
+      // 实现重命名逻辑
     }
 
-    const handleLogout = () => {
-        authStore.logout()
-        router.push('/login')
-    }
 
-    const navigateTo = (index) => {
-        const newPath = '/' + pathParts.value.slice(0, index + 1).join('/')
-        currentPath.value = newPath
-        filesStore.loadFiles(currentSpace.value, newPath)
+        return {
+            authStore,
+            filesStore,
+            roleDisplay,
+            handleFileClick,
+            navigateTo,
+            handleLogout,
+            retryLoad,
+            showUploadModalFlag,
+            showUploadModal,
+            hideUploadModal,
+            handleMenuAction,
+            downloadFile,
+            renameFile
+        }
     }
-
-    const handleNavigate = (folder) => {
-        const newPath = currentPath.value === '/' ? `/${folder}` : `${currentPath.value}/${folder}`
-        currentPath.value = newPath
-        filesStore.loadFiles(currentSpace.value, newPath)
-    }
-
-    return {
-        authStore,
-        spaces,
-        currentSpace,
-        currentPath,
-        pathParts,
-        files,
-        switchSpace,
-        handleLogout,
-        navigateTo,
-        handleNavigate
-    }
-}
 }
 </script>
 
 <style scoped>
 .dashboard {
-    display: grid;
-    grid-template-rows: auto auto auto 1fr;
-    height: 100vh;
+    padding: 20px;
     font-family: 'Arial', sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    min-height: 100vh;
 }
 
-header {
+.top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
-    background-color: #e6f7ff;
-    border-bottom: 1px solid #b3e0ff;
-    height: 60px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eaeaea;
 }
 
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.logo {
-    height: 40px;
-    width: auto;
-}
-
-h1 {
-    margin: 0;
+.app-title {
+    font-size: 24px;
+    font-weight: bold;
     color: #1890ff;
-    font-size: 20px;
 }
 
-.header-right {
+.user-info {
     display: flex;
     align-items: center;
     gap: 15px;
@@ -150,6 +210,14 @@ h1 {
     color: #333;
 }
 
+.user-role {
+    background-color: #f0f0f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #666;
+}
+
 .logout-btn {
     padding: 6px 12px;
     background-color: #f5f5f5;
@@ -157,30 +225,34 @@ h1 {
     border-radius: 4px;
     cursor: pointer;
     color: #666;
+    transition: all 0.2s;
 }
 
 .logout-btn:hover {
-    background-color: #e6f7ff;
-    border-color: #1890ff;
-    color: #1890ff;
+    background-color: #ff4d4f;
+    border-color: #ff4d4f;
+    color: white;
 }
 
-.path-display {
-    padding: 10px 20px;
-    background-color: #f0f9f4;
-    border-bottom: 1px solid #d9f7be;
-    font-size: 14px;
+.path-navigation {
+    background-color: #f0f9ff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border: 1px solid #d0e8ff;
+    font-size: 15px;
 }
 
-.path-part {
-    padding: 4px 8px;
-    border-radius: 4px;
+.path-segment {
     cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
 }
 
-.path-part:hover {
-    background-color: #d9f7be;
-    color: #389e0d;
+.path-segment:hover {
+    background-color: #e6f7ff;
+    color: #1890ff;
 }
 
 .path-separator {
@@ -188,37 +260,98 @@ h1 {
     color: #999;
 }
 
-nav {
-    display: flex;
-    padding: 10px 20px;
-    background-color: #f6ffed;
-    border-bottom: 1px solid #d9f7be;
-    gap: 10px;
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
 }
 
-nav button {
-    padding: 8px 15px;
-    background: none;
-    border: 1px solid #b7eb8f;
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #666;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #1890ff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-message {
+    background-color: #fff2f0;
+    border: 1px solid #ffccc7;
+    color: #f5222d;
+    padding: 12px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.retry-btn {
+    background-color: #ff4d4f;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    margin-left: 10px;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0;
+    color: #999;
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-text {
+    font-size: 16px;
+}
+
+.action-bar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 8px;
+}
+
+.upload-btn {
+    padding: 8px 16px;
+    background-color: #1890ff;
+    color: white;
+    border: none;
     border-radius: 4px;
     cursor: pointer;
-    color: #389e0d;
-    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100px;
 }
 
-nav button:hover {
-    background-color: #d9f7be;
-}
-
-nav button.active {
-    background-color: #389e0d;
-    color: white;
-    border-color: #389e0d;
-}
-
-main {
-    padding: 20px;
-    overflow: auto;
-    background-color: #fafafa;
+.upload-btn:hover {
+    background-color: #40a9ff;
 }
 </style>

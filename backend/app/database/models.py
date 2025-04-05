@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, Enum, BigInteger, ForeignKey, TIMESTAMP
+from sqlalchemy import Column, Integer, String, Boolean, Enum, BigInteger, ForeignKey, TIMESTAMP, DateTime
+from sqlalchemy.orm import relationship
 from app.database import Base
 from sqlalchemy.sql import func
+from enum import Enum as PyEnum
 
 class User(Base):
     __tablename__ = "users"
@@ -23,11 +25,33 @@ class StorageQuota(Base):
     updated_by = Column(Integer, ForeignKey('users.id'))
     updated_at = Column(TIMESTAMP, server_default=func.now())
 
+class FileStatus(str, PyEnum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+class OwnerType(str, PyEnum):
+    public = "public"
+    group = "group"
+    user = "user"
+
 class File(Base):
     __tablename__ = "files"
     
     id = Column(String(36), primary_key=True)
-    name = Column(String(255))
-    size = Column(BigInteger)  # 文件大小(字节)
-    owner_type = Column(Enum('public', 'group', 'user'))
-    owner_id = Column(Integer)
+    name = Column(String(255), nullable=False)
+    parent_id = Column(String(36), ForeignKey('files.id'), index=True)
+    is_folder = Column(Boolean, nullable=False, default=False)
+    owner_type = Column(Enum(OwnerType), nullable=False)
+    owner_id = Column(Integer, nullable=False)
+    storage_path = Column(String(512), nullable=False)
+    size = Column(BigInteger, nullable=False, default=0)
+    mime_type = Column(String(100))
+    status = Column(Enum(FileStatus), nullable=False, default=FileStatus.approved)
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+    md5 = Column(String(32), nullable=True)
+    # 关系定义
+    parent = relationship("File", remote_side=[id], back_populates="children")
+    children = relationship("File", back_populates="parent")
