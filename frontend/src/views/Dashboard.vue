@@ -131,29 +131,44 @@ export default {
         const handleMenuAction=({ action, file }) =>{
       switch(action) {
         case 'download':
-          this.downloadFile(file)
+          handleDownload(file)
           break
         case 'rename':
-          this.renameFile(file)
+          handleRename(file)
           break
         case 'move':
-          this.moveFile(file)
+          moveFile(file)
           break
         case 'properties':
-          this.showFileProperties(file)
+          handleDelete(file)
           break
       }
     }
     
-    const downloadFile=(file) =>{
-      console.log('下载文件:', file.name)
-      // 实现下载逻辑
-    }
-    
-    const renameFile=(file) =>{
-      console.log('重命名文件:', file.name)
-      // 实现重命名逻辑
-    }
+        const handleDownload = async (file) => {
+            try {
+                await filesStore.downloadFile(file)
+            } catch (error) {
+                // 错误已经在store中处理，这里可以添加额外逻辑
+            }
+        }
+
+        const handleRename = async (file, newName) => {
+            try {
+                await filesStore.renameFile(file, newName)
+            } catch (error) {
+                // 错误处理
+            }
+        }
+
+        const handleDelete = async (file) => {
+            try {
+                await filesStore.deleteFile(file)
+            } catch (error) {
+                // 错误处理
+            }
+        }
+
 
 
         return {
@@ -168,8 +183,9 @@ export default {
             showUploadModal,
             hideUploadModal,
             handleMenuAction,
-            downloadFile,
-            renameFile
+            handleDelete,
+            handleRename,
+            handleDownload
         }
     }
 }

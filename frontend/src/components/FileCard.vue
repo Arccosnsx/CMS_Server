@@ -61,7 +61,6 @@ export default {
         y: event.clientY
       }
       this.showMenu = true
-      
       // 点击其他地方关闭菜单
       const closeMenu = () => {
         this.showMenu = false

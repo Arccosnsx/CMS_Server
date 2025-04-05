@@ -139,31 +139,6 @@ async def move_file(
 ):
     return move_file(db, file_id, move_data.target_parent_id, current_user)
 
-@router.get("/upload/check")
-async def check_upload(
-    md5: str,
-    total_size: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    # 秒传检查
-    existing_file = db.query(File).filter(
-        File.md5 == md5,
-        File.size == total_size,
-        File.status == FileStatus.approved
-    ).first()
-    
-    if existing_file:
-        return {"code": 2000, "exist": True, "chunks": []}
-    
-    # 断点续传检查
-    chunk_dir = os.path.join(settings.CHUNKTEMP, md5)
-    uploaded_chunks = []
-    if os.path.exists(chunk_dir):
-        uploaded_chunks = [int(f) for f in os.listdir(chunk_dir) if f.isdigit()]
-    
-    return {"code": 2001, "exist": False, "chunks": uploaded_chunks}
-
 @router.post("/create-folder", response_model=FileOut)
 async def create_folder(
     folder_data: FileCreate,
